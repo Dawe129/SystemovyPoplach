@@ -1,0 +1,196 @@
+#include <Wire.h>
+#include "rgb_lcd.h"
+#include <Keypad.h>
+
+// LCD displej
+rgb_lcd lcd;
+const int colorR = 255;  // Bílé podsvícení
+const int colorG = 255;
+const int colorB = 255;
+
+// Ultrazvukový senzor
+#define trigPin 9
+#define echoPin 10
+
+// Buzzer
+#define buzzerPin 8
+
+// Klávesnice 4x3
+const byte ROWS = 4;
+const byte COLS = 3;
+char keys[ROWS][COLS] = {
+  {'1','2','3'},
+  {'4','5','6'},
+  {'7','8','9'},
+  {'*','0','#'}
+};
+byte rowPins[ROWS] = {A0, 2, 3, 4};  // Tvoje funkční kombinace
+byte colPins[COLS] = {5, 6, 7};       // Tvoje funkční kombinace
+Keypad myKeypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+
+// Proměnné
+String password = "1234";
+String inputPassword = "";
+int initialDistance = 0;
+bool alarmActive = false;
+bool calibrationDone = false;
+
+void setup() {
+  Serial.begin(9600);
+  lcd.begin(16, 2);
+  lcd.setRGB(colorR, colorG, colorB);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(buzzerPin, OUTPUT);
+  lcd.print("Systemovy poplach");
+  delay(2000);
+  lcd.clear();
+}
+
+void loop() {
+  if (!alarmActive) {
+    mainMenu();
+  } else {
+    monitoringLoop();
+  }
+}
+
+// Hlavní menu
+void mainMenu() {
+  lcd.setCursor(0, 0);
+  lcd.print("Stiskni * pro");
+  lcd.setCursor(0, 1);
+  lcd.print("aktivaci      ");
+  
+  char key = myKeypad.getKey();
+  if (key == '*') {
+    activateAlarm();
+  }
+}
+
+// Kalibrace a monitoring
+void activateAlarm() {
+  lcd.clear();
+  lcd.print("Kalibrace...");
+  
+  // Průměrování 5 měření
+  int validMeasurements = 0;
+  initialDistance = 0;
+  for (int i = 0; i < 5; i++) {
+    int dist = getDistance();
+    if (dist > 2 && dist < 400) { // Filtrace chyb
+      initialDistance += dist;
+      validMeasurements++;
+    }
+    delay(100);
+  }
+  
+  if (validMeasurements == 0) {
+    errorState("Chyba senzoru!");
+    return;
+  }
+  
+  initialDistance /= validMeasurements;
+  alarmActive = true;
+  lcd.clear();
+  lcd.print("Monitoring...");
+  lcd.setCursor(0, 1);
+  lcd.print("Vzdalenost: ");
+}
+
+// Hlavní smyčka alarmu
+void monitoringLoop() {
+  int currentDistance = getDistance();
+  
+  // Zobrazení vzdálenosti
+  lcd.setCursor(11, 1);
+  if (currentDistance < 400) {
+    lcd.print("    ");
+    lcd.setCursor(11, 1);
+    lcd.print(currentDistance);
+    lcd.print("cm");
+  }
+  
+
+  if (abs(currentDistance - initialDistance) > 15) {
+    triggerAlarm();
+  }
+  delay(100);
+}
+
+void triggerAlarm() {
+  lcd.setRGB(255, 0, 0);
+  tone(buzzerPin, 100);
+  lcd.clear();
+  lcd.print("!!! ALARM !!!");
+  lcd.setCursor(0, 1);
+  lcd.print("Zadej kod:");
+  inputPassword = "";
+  
+  while (true) {
+    char key = myKeypad.getKey();
+    if (key) {
+      if (key == '#') { // Smazat
+        inputPassword = "";
+        lcd.setCursor(0, 1);
+        lcd.print("Zadej kod:    ");
+      } else if (key == '*') { // Potvrdit
+        if (inputPassword == password) {
+          deactivateAlarm();
+          return;
+        } else {
+          lcd.setCursor(0, 1);
+          lcd.print("Spatny kod!   ");
+          delay(1000);
+          lcd.setCursor(0, 1);
+          lcd.print("Zadej kod:    ");
+          inputPassword = "";
+        }
+      } else if (inputPassword.length() < 4) {
+        inputPassword += key;
+        lcd.setCursor(10, 1);
+        for (int i = 0; i < inputPassword.length(); i++) {
+          lcd.print('*');
+        }
+      }
+    }
+  }
+}
+
+// Deaktivace alarmu
+void deactivateAlarm() {
+  noTone(buzzerPin);
+  lcd.setRGB(colorR, colorG, colorB);
+  lcd.clear();
+  lcd.print("Deaktivovano");
+  delay(1500);
+  alarmActive = false;
+  lcd.clear();
+}
+
+// Chybový stav
+void errorState(String message) {
+  lcd.clear();
+  lcd.print(message);
+  while (true) {
+    delay(1000);
+  }
+}
+
+// Měření vzdálenosti
+int getDistance() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  long duration = pulseIn(echoPin, HIGH);
+  int distance = duration * 0.034 / 2;
+  
+  // Ladící výpis
+  Serial.print("Vzdalenost: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+  
+  return distance;
+}
