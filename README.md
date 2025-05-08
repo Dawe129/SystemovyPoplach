@@ -1,7 +1,5 @@
-# SystemovyPoplach
-
 # Postup ke spuštění programu
-#Zapojení komponent:
+# Zapojení komponent:
 
 ## LCD displej (Grove LCD RGB Backlight):
 SDA připojte na A4 (Arduino UNO)
@@ -24,18 +22,13 @@ na D8
 na GND
 
 # Nahrání programu:
-
 Otevřete Arduino IDE.
-
 Nahrajte do Arduina kód z tohoto repozitáře.
 
-Ujistěte se, že máte nainstalované knihovny:
-
+## Ujistěte se, že máte nainstalované knihovny:
 Keypad
-
 Grove_LCD_RGB_Backlight (nebo rgb_lcd.h od Seeed Studio)
 
-Připojení napájení:
-
+# Připojení napájení:
 Připojte Arduino k PC nebo k napájecímu adaptéru (5V).
 
